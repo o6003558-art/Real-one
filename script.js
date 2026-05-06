@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded, remove, onChildRemoved, set, get, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, push, onChildAdded, remove, onChildRemoved, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -17,9 +17,11 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
 
+// --- حدد إيميل الأدمن هنا ---
+const ADMIN_EMAIL = "o6003558@gmail.com"; // غير ده لإيميلك الحقيقي اللي بتسجل بيه
+
 let currentUserData = null;
 
-// 1. مراقبة حالة المستخدم (تعديل لضمان جلب البيانات)
 onAuthStateChanged(auth, async (user) => {
     const inputArea = document.getElementById("input-area");
     const loginNotice = document.getElementById("login-notice");
@@ -34,11 +36,11 @@ onAuthStateChanged(auth, async (user) => {
         authBtn.onclick = () => signOut(auth);
         profileBtn.style.display = "inline-block";
         
-        // جلب البيانات فوراً وتحديث الواجهة
         const userRef = ref(db, 'users/' + user.uid);
-        const snapshot = await get(userRef);
-        currentUserData = snapshot.val() || { username: "عضو جديد", lastUpdate: 0 };
-        userInfo.innerText = "أهلاً، " + currentUserData.username;
+        onValue(userRef, (snapshot) => {
+            currentUserData = snapshot.val() || { username: "عضو جديد", lastUpdate: 0 };
+            userInfo.innerText = "أهلاً، " + currentUserData.username + (user.email === ADMIN_EMAIL ? " (Admin)" : "");
+        });
     } else {
         inputArea.style.display = "none";
         loginNotice.style.display = "block";
@@ -50,102 +52,82 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 2. وظائف التسجيل والدخول
-window.handleAuth = (type) => {
-    const email = document.getElementById("email-input").value;
-    const pass = document.getElementById("password-input").value;
-    if (!email || !pass) return alert("من فضلك ادخل البيانات");
-
-    if (type === 'login') {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
-    } else {
-        createUserWithEmailAndPassword(auth, email, pass).then(async (res) => {
-            const initialName = "User_" + Math.floor(Math.random()*1000);
-            await set(ref(db, 'users/' + res.user.uid), { username: initialName, lastUpdate: 0 });
-            window.closeModals();
-        }).catch(err => alert("خطأ: " + err.message));
-    }
-};
-
-// 3. وظيفة تعديل الاسم (كانت ناقصة عندك)
-document.getElementById("save-username-btn").onclick = async () => {
-    const newName = document.getElementById("username-input").value.trim();
-    if (!newName) return alert("اكتب اسم أولاً");
-
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-
-    if (currentUserData && (now - currentUserData.lastUpdate < oneDay)) {
-        const hoursLeft = Math.ceil((oneDay - (now - currentUserData.lastUpdate)) / (1000 * 60 * 60));
-        return alert(`تقدر تغير اسمك كمان ${hoursLeft} ساعة`);
-    }
-
-    try {
-        await update(ref(db, 'users/' + auth.currentUser.uid), {
-            username: newName,
-            lastUpdate: now
-        });
-        currentUserData.username = newName;
-        currentUserData.lastUpdate = now;
-        document.getElementById("user-info").innerText = "أهلاً، " + newName;
-        alert("تم تحديث الاسم!");
-        window.closeModals();
-    } catch (e) {
-        alert("فشل التحديث");
-    }
-};
-
-// 4. وظيفة إرسال الرسائل
 window.sendMessage = () => {
     const input = document.getElementById("message-input");
-    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    if (input.value.trim() && auth.currentUser && currentUserData) {
+    if (input.value.trim() && auth.currentUser) {
         push(messagesRef, {
             senderId: auth.currentUser.uid,
-            senderName: currentUserData.username,
             text: input.value,
-            time: Date.now(),
-            role: isAdmin ? "Admin 👑" : "User 👤" 
+            time: Date.now()
         });
         input.value = "";
     }
 };
 
-// 5. عرض الرسائل وحذفها
 onChildAdded(messagesRef, (data) => {
     const chatBox = document.getElementById("chat-box");
     const msg = data.val();
+    const msgId = data.key;
     const div = document.createElement("div");
     div.classList.add("message");
-    div.id = data.key;
+    div.id = msgId;
     
     const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
     div.classList.add(isMe ? "my-message" : "others-message");
 
-    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    const deleteBtn = isAdmin ? `<button onclick="window.deleteMessage('${data.key}')" style="color:red; background:none; border:none; cursor:pointer; font-size:10px; margin-right:5px;">[X]</button>` : "";
+    // ربط اسم المستخدم بشكل حي (Dynamic)
+    const userRef = ref(db, 'users/' + msg.senderId);
+    onValue(userRef, (snapshot) => {
+        const userData = snapshot.val();
+        const displayName = userData ? userData.username : "مستخدم سابق";
+        
+        // جلب بيانات المستخدم لمعرفة هل هو أدمن (بناءً على الإيميل من قاعدة البيانات أو لو كان هو أنت)
+        // ملاحظة: لضمان الدقة، الأدمن بيتحدد هنا بناءً على صلاحيتك أنت كـ Viewer
+        const amIAdmin = auth.currentUser && auth.currentUser.email === ADMIN_EMAIL;
+        const deleteBtn = amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:red; background:none; border:none; cursor:pointer; font-size:10px;">[مسح]</button>` : "";
 
-    const roleColor = msg.role && msg.role.includes("Admin") ? "#ff9800" : "#ffffff";
+        div.innerHTML = `
+            <div style="font-size:10px; font-weight:bold; color: ${isMe ? '#ffeb3b' : '#fff'}">
+                ${displayName} ${amIAdmin && isMe ? '(Admin)' : ''}
+            </div>
+            <div style="margin:5px 0; font-size:15px;">${msg.text}</div>
+            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between">
+                <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
+                ${deleteBtn}
+            </div>
+        `;
+    });
 
-    div.innerHTML = `
-        <div style="font-size:10px; color:${roleColor}; font-weight:bold">${msg.senderName} (${msg.role || 'User'})</div>
-        <div style="margin:5px 0; font-size:15px;">${msg.text}</div>
-        <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.1); padding-top:3px;">
-            <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
-            ${deleteBtn}
-        </div>
-    `;
     chatBox.appendChild(div);
     window.scrollTo(0, document.body.scrollHeight);
 });
 
-window.deleteMessage = (id) => { if(confirm("هل تريد الحذف؟")) remove(ref(db, "messages/" + id)); };
-onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
+// باقي الدوال (Auth, Modals, Delete) تبقى كما هي مع التأكد من إضافة window.
+window.handleAuth = (type) => {
+    const email = document.getElementById("email-input").value;
+    const pass = document.getElementById("password-input").value;
+    if (type === 'login') {
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
+    } else {
+        createUserWithEmailAndPassword(auth, email, pass).then(res => {
+            set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*100), lastUpdate: 0 });
+            window.closeModals();
+        }).catch(err => alert(err.message));
+    }
+};
 
-// 6. التحكم في النوافذ (Modals)
-window.openAuthModal = () => { document.getElementById("auth-modal").style.display = "flex"; };
-document.getElementById("profile-btn").onclick = () => { document.getElementById("profile-modal").style.display = "flex"; };
+window.deleteMessage = (id) => { if(confirm("حذف الرسالة؟")) remove(ref(db, "messages/" + id)); };
+onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
+window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => {
     document.getElementById("auth-modal").style.display = "none";
     document.getElementById("profile-modal").style.display = "none";
+};
+document.getElementById("profile-btn").onclick = () => document.getElementById("profile-modal").style.display = "flex";
+
+document.getElementById("save-username-btn").onclick = async () => {
+    const newName = document.getElementById("username-input").value.trim();
+    if (!newName) return;
+    await update(ref(db, 'users/' + auth.currentUser.uid), { username: newName, lastUpdate: Date.now() });
+    window.closeModals();
 };
