@@ -16,8 +16,8 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
+const usersRef = ref(db, "users");
 
-// --- ⚠️ ضع إيميلك هنا بالظبط ⚠️ ---
 const ADMIN_EMAIL = "o6003558@gmail.com"; 
 
 let currentUserData = null;
@@ -36,12 +36,13 @@ onAuthStateChanged(auth, async (user) => {
         authBtn.onclick = () => signOut(auth);
         profileBtn.style.display = "inline-block";
         
-        // مراقبة بيانات المستخدم الحالي
-        const userRef = ref(db, 'users/' + user.uid);
-        onValue(userRef, (snapshot) => {
+        onValue(ref(db, 'users/' + user.uid), (snapshot) => {
             currentUserData = snapshot.val() || { username: "عضو جديد", lastUpdate: 0 };
             let adminTag = (user.email === ADMIN_EMAIL) ? " <span style='color:#ff9800'>(Admin 👑)</span>" : "";
-            userInfo.innerHTML = "أهلاً، " + currentUserData.username + adminTag;
+            userInfo.innerHTML = `أهلاً، ${currentUserData.username} ${adminTag}`;
+            
+            // لو أدمن، اظهر زرار لمشاهدة قائمة المستخدمين في الكونسول (تجريبي)
+            if(user.email === ADMIN_EMAIL) console.log("أنت الأدمن: يمكنك كتابة getAllUsers() في الكونسول لرؤية الجميع");
         });
     } else {
         inputArea.style.display = "none";
@@ -54,12 +55,54 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// --- وظيفة التسجيل مع إجبارية الـ Username ---
+window.handleAuth = (type) => {
+    const email = document.getElementById("email-input").value;
+    const pass = document.getElementById("password-input").value;
+    const regName = document.getElementById("reg-username-input").value.trim();
+
+    if (type === 'signup') {
+        if (!regName) {
+            alert("لازم تختار username عشان تسجل!");
+            return;
+        }
+        createUserWithEmailAndPassword(auth, email, pass).then(res => {
+            set(ref(db, 'users/' + res.user.uid), { 
+                username: regName, 
+                email: email, // تخزين الإيميل للرجوع إليه
+                lastUpdate: 0,
+                joinDate: Date.now()
+            });
+            window.closeModals();
+        }).catch(err => alert("خطأ في التسجيل: " + err.message));
+    } else {
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
+    }
+};
+
+// --- وظائف الأدمن للتحكم في المستخدمين ---
+// تقدر تنادي الدالة دي من الكونسول (F12) عشان تشوف كل الناس
+window.getAllUsers = async () => {
+    if (auth.currentUser?.email !== ADMIN_EMAIL) return console.log("غير مسموح لك");
+    const snapshot = await get(usersRef);
+    console.table(snapshot.val()); // هيعرضلك جدول فيه كل اليوزرز وبياناتهم
+};
+
+window.deleteUserFromDB = (uid) => {
+    if (auth.currentUser?.email !== ADMIN_EMAIL) return;
+    if (confirm("حذف هذا المستخدم نهائياً من قاعدة البيانات؟")) {
+        remove(ref(db, 'users/' + uid));
+        alert("تم الحذف من قاعدة البيانات بنجاح");
+    }
+};
+
+// --- إرسال وعرض الرسايل (نفس الكود السابق مع تأمين الأدمن) ---
 window.sendMessage = () => {
     const input = document.getElementById("message-input");
     if (input.value.trim() && auth.currentUser) {
         push(messagesRef, {
             senderId: auth.currentUser.uid,
-            senderEmail: auth.currentUser.email, // بنخزن الإيميل للتأكد من هوية الأدمن لاحقاً
+            senderEmail: auth.currentUser.email,
             text: input.value,
             time: Date.now()
         });
@@ -72,71 +115,32 @@ onChildAdded(messagesRef, (data) => {
     const msg = data.val();
     const msgId = data.key;
     const div = document.createElement("div");
-    div.classList.add("message");
+    div.className = `message ${auth.currentUser && msg.senderId === auth.currentUser.uid ? "my-message" : "others-message"}`;
     div.id = msgId;
-    
-    // تحديد الاتجاه: رسايلي أنا تظهر يمين (أو حسب ستايلك)
-    const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
-    div.classList.add(isMe ? "my-message" : "others-message");
 
-    // جلب اسم صاحب الرسالة "لايف" عشان لو غيره يتحدث فوراً
-    const senderRef = ref(db, 'users/' + msg.senderId);
-    onValue(senderRef, (snapshot) => {
+    onValue(ref(db, 'users/' + msg.senderId), (snapshot) => {
         const userData = snapshot.val();
         const displayName = userData ? userData.username : "مستخدم";
-        
-        // فحص: هل الشخص اللي فاتح الموقع حالياً هو الأدمن؟
-        const amIAdmin = auth.currentUser && auth.currentUser.email === ADMIN_EMAIL;
-        
-        // زرار المسح يظهر للأدمن فقط
-        const deleteBtn = amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:#ff4444; background:none; border:none; cursor:pointer; font-size:11px; font-weight:bold; margin-right:10px;">[حذف]</button>` : "";
-
-        // وسم الأدمن يظهر بجانب اسم الأدمن فقط في الشات
+        const amIAdmin = auth.currentUser?.email === ADMIN_EMAIL;
         const isMsgFromAdmin = msg.senderEmail === ADMIN_EMAIL;
-        const adminBadge = isMsgFromAdmin ? " <span style='color:#ffeb3b; font-size:9px;'>[Admin]</span>" : "";
 
         div.innerHTML = `
-            <div style="font-size:10px; font-weight:bold; margin-bottom:3px; color: ${isMsgFromAdmin ? '#ffeb3b' : '#fff'}">
-                ${displayName}${adminBadge}
+            <div style="font-size:10px; font-weight:bold; color: ${isMsgFromAdmin ? '#ffeb3b' : '#fff'}">
+                ${displayName} ${isMsgFromAdmin ? '[Admin]' : ''}
             </div>
-            <div style="font-size:15px; margin-bottom:5px;">${msg.text}</div>
-            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between; align-items:center;">
-                <span>${new Date(msg.time).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
-                ${deleteBtn}
+            <div style="font-size:15px; margin:5px 0;">${msg.text}</div>
+            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between;">
+                <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
+                ${amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:red; background:none; border:none; cursor:pointer;">[حذف]</button>` : ""}
             </div>
         `;
     });
-
     chatBox.appendChild(div);
     window.scrollTo(0, document.body.scrollHeight);
 });
 
-// دالة الحذف
-window.deleteMessage = (id) => {
-    if(confirm("هل أنت متأكد من حذف هذه الرسالة؟")) {
-        remove(ref(db, "messages/" + id));
-    }
-};
-
-onChildRemoved(messagesRef, (data) => {
-    const el = document.getElementById(data.key);
-    if(el) el.remove();
-});
-
-// باقي دوال الـ Auth والـ Modals
-window.handleAuth = (type) => {
-    const email = document.getElementById("email-input").value;
-    const pass = document.getElementById("password-input").value;
-    if (type === 'login') {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
-    } else {
-        createUserWithEmailAndPassword(auth, email, pass).then(res => {
-            set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*100), lastUpdate: 0 });
-            window.closeModals();
-        }).catch(err => alert("خطأ: " + err.message));
-    }
-};
-
+window.deleteMessage = (id) => { if(confirm("حذف الرسالة؟")) remove(ref(db, "messages/" + id)); };
+onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => {
     document.getElementById("auth-modal").style.display = "none";
@@ -146,7 +150,8 @@ document.getElementById("profile-btn").onclick = () => document.getElementById("
 
 document.getElementById("save-username-btn").onclick = async () => {
     const newName = document.getElementById("username-input").value.trim();
-    if (!newName) return;
-    await update(ref(db, 'users/' + auth.currentUser.uid), { username: newName, lastUpdate: Date.now() });
-    window.closeModals();
+    if (newName) {
+        await update(ref(db, 'users/' + auth.currentUser.uid), { username: newName, lastUpdate: Date.now() });
+        window.closeModals();
+    }
 };
