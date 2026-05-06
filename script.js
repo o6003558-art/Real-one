@@ -19,157 +19,54 @@ const messagesRef = ref(db, "messages");
 
 let currentUserData = null;
 
-// --- 1. مراقبة حالة المستخدم ---
+// مراقبة حالة المستخدم
 onAuthStateChanged(auth, async (user) => {
     const inputArea = document.getElementById("input-area");
     const loginNotice = document.getElementById("login-notice");
+    const authBtn = document.getElementById("auth-btn");
+    const profileBtn = document.getElementById("profile-btn");
+    const userInfo = document.getElementById("user-info");
+
     if (user) {
-        if(inputArea) inputArea.style.display = "flex";
-        if(loginNotice) loginNotice.style.display = "none";
-        const userRef = ref(db, 'users/' + user.uid);
-        const snapshot = await get(userRef);
-        currentUserData = snapshot.val() || { username: "مستخدم جديد", lastUpdate: 0 };
+        inputArea.style.display = "flex";
+        loginNotice.style.display = "none";
+        authBtn.innerText = "خروج";
+        authBtn.onclick = () => signOut(auth);
+        profileBtn.style.display = "inline-block";
+        
+        const snapshot = await get(ref(db, 'users/' + user.uid));
+        currentUserData = snapshot.val() || { username: "عضو جديد", lastUpdate: 0 };
+        userInfo.innerText = "أهلاً، " + currentUserData.username;
     } else {
-        if(inputArea) inputArea.style.display = "none";
-        if(loginNotice) loginNotice.style.display = "block";
-    }
-});
-
-// --- 2. وظائف التسجيل ---
-window.handleAuth = (type) => {
-    const email = document.getElementById("email-input").value;
-    const pass = document.getElementById("password-input").value;
-    if (type === 'login') {
-        signInWithEmailAndPassword(auth, email, pass).then(closeModals).catch(err => alert("خطأ في الدخول: " + err.message));
-    } else {
-        createUserWithEmailAndPassword(auth, email, pass).then(res => {
-            set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*1000), lastUpdate: 0 });
-            closeModals();
-        }).catch(err => alert("خطأ في التسجيل: " + err.message));
-    }
-};
-
-// --- 3. الإرسال ---
-window.sendMessage = function() {
-    const input = document.getElementById("message-input");
-    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    if (input.value.trim() !== "" && auth.currentUser) {
-        push(messagesRef, {
-            senderId: auth.currentUser.uid,
-            senderName: currentUserData ? currentUserData.username : "مستخدم",
-            text: input.value,
-            time: Date.now(),
-            role: isAdmin ? "Admin 👑" : "User 👤" 
-        });
-        input.value = "";
-    }
-};
-
-// --- 4. عرض الرسائل ---
-onChildAdded(messagesRef, (data) => {
-    const chatBox = document.getElementById("chat-box");
-    if(!chatBox) return;
-    const msgData = data.val();
-    const msgId = data.key;
-    const msgDiv = document.createElement("div");
-    msgDiv.classList.add("message");
-    msgDiv.id = msgId;
-
-    const myUID = auth.currentUser ? auth.currentUser.uid : 'guest';
-    msgDiv.classList.add(msgData.senderId === myUID ? "my-message" : "others-message");
-
-    const dateObj = new Date(msgData.time || Date.now());
-    const timeStr = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    let deleteBtn = isAdmin ? `<button onclick="deleteMessage('${msgId}')" style="color:red; border:none; background:none; cursor:pointer; font-size:10px;">[مسح]</button>` : "";
-
-    msgDiv.innerHTML = `
-        <div style="font-size: 11px; font-weight: bold; color: ${msgData.role?.includes("Admin") ? "#ff9800" : "#ffffff"};">
-            ${msgData.senderName || "Unknown"} (${msgData.role || "User"})
-        </div>
-        <div style="font-size: 15px; margin: 5px 0; word-wrap: break-word;">${msgData.text}</div>
-        <div style="font-size: 10px; color: #ddd; display: flex; justify-content: space-between;">
-            <span>${timeStr}</span>
-            ${deleteBtn}
-        </div>
-    `;
-    chatBox.appendChild(msgDiv);
-    window.scrollTo(0, document.body.scrollHeight);
-});
-
-// دوال التحكم في النوافذ
-window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
-window.closeModals = () => {
-    document.getElementById("auth-modal").style.display = "none";
-    if(document.getElementById("profile-modal")) document.getElementById("profile-modal").style.display = "none";
-};
-window.deleteMessage = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
-onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
-        // جلب بيانات المستخدم من القاعدة
-        const userRef = ref(db, 'users/' + user.uid);
-        const snapshot = await get(userRef);
-        currentUserData = snapshot.val() || { username: "مستخدم جديد", lastUpdate: 0 };
-    } else {
-        // مستخدم غير مسجل (زائر)
         inputArea.style.display = "none";
         loginNotice.style.display = "block";
-        authBtn.innerText = "تسجيل دخول";
-        authBtn.onclick = openAuthModal;
+        authBtn.innerText = "دخول";
+        authBtn.onclick = () => window.openAuthModal();
         profileBtn.style.display = "none";
-        currentUserData = null;
+        userInfo.innerText = "زائر";
     }
 });
 
-// --- 2. وظائف التسجيل والدخول ---
 window.handleAuth = (type) => {
     const email = document.getElementById("email-input").value;
     const pass = document.getElementById("password-input").value;
     if (type === 'login') {
-        signInWithEmailAndPassword(auth, email, pass).then(closeModals).catch(err => alert(err.message));
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
     } else {
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
-            // إنشاء بروفايل أولي
-            set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*1000), lastUpdate: 0 });
-            closeModals();
+            set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*100), lastUpdate: 0 });
+            window.closeModals();
         }).catch(err => alert(err.message));
     }
 };
 
-// --- 3. تغيير الـ Username (مرة كل 24 ساعة) ---
-document.getElementById("save-username-btn").onclick = async () => {
-    const newName = document.getElementById("username-input").value.trim();
-    if (!newName) return;
-
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000; // 24 ساعة بالملي ثانية
-
-    if (now - currentUserData.lastUpdate < oneDay) {
-        const remaining = Math.ceil((oneDay - (now - currentUserData.lastUpdate)) / (1000 * 60 * 60));
-        alert(`عفواً! يمكنك تغيير اسمك مرة واحدة يومياً. انتظر ${remaining} ساعة تقريباً.`);
-        return;
-    }
-
-    // تحديث في القاعدة
-    await update(ref(db, 'users/' + auth.currentUser.uid), {
-        username: newName,
-        lastUpdate: now
-    });
-    
-    currentUserData.username = newName;
-    currentUserData.lastUpdate = now;
-    alert("تم تغيير الاسم بنجاح!");
-    closeModals();
-};
-
-// --- 4. وظيفة إرسال الرسائل (المطورة) ---
-window.sendMessage = function() {
+window.sendMessage = () => {
     const input = document.getElementById("message-input");
     const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    
-    if (input.value.trim() !== "" && auth.currentUser) {
+    if (input.value.trim() && auth.currentUser) {
         push(messagesRef, {
             senderId: auth.currentUser.uid,
-            senderName: currentUserData.username, // نستخدم الاسم المخزن في القاعدة
+            senderName: currentUserData.username,
             text: input.value,
             time: Date.now(),
             role: isAdmin ? "Admin 👑" : "User 👤" 
@@ -177,53 +74,37 @@ window.sendMessage = function() {
         input.value = "";
     }
 };
-document.getElementById("send-btn").onclick = sendMessage;
 
-// --- 5. عرض الرسائل (كما هي مع استخدام senderName) ---
 onChildAdded(messagesRef, (data) => {
     const chatBox = document.getElementById("chat-box");
-    const msgData = data.val();
-    const msgId = data.key;
-    const msgDiv = document.createElement("div");
-    msgDiv.classList.add("message");
-    msgDiv.id = msgId;
-
-    const myUID = auth.currentUser ? auth.currentUser.uid : 'guest';
-    msgDiv.classList.add(msgData.senderId === myUID ? "my-message" : "others-message");
-
-    const dateObj = new Date(msgData.time || Date.now());
-    const timeStr = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const msg = data.val();
+    const div = document.createElement("div");
+    div.classList.add("message");
+    div.id = data.key;
     
-    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
-    let deleteBtn = isAdmin ? `<button onclick="deleteMessage('${msgId}')" style="color:red; border:none; background:none; cursor:pointer; font-size:10px;">[مسح]</button>` : "";
+    const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
+    div.classList.add(isMe ? "my-message" : "others-message");
 
-    msgDiv.innerHTML = `
-        <div style="font-size: 11px; font-weight: bold; color: ${msgData.role.includes("Admin") ? "#ff9800" : "#ffffff"};">
-            ${msgData.senderName} (${msgData.role})
-        </div>
-        <div style="font-size: 15px; margin: 5px 0; word-wrap: break-word;">${msgData.text}</div>
-        <div style="font-size: 10px; color: #ddd; display: flex; justify-content: space-between;">
-            <span>${timeStr}</span>
-            ${deleteBtn}
+    const isAdmin = localStorage.getItem("adminKey") === "omar_admin_77";
+    const deleteBtn = isAdmin ? `<button onclick="window.deleteMessage('${data.key}')" style="color:red; background:none; border:none; cursor:pointer;">[X]</button>` : "";
+
+    div.innerHTML = `
+        <div style="font-size:10px; opacity:0.7; font-weight:bold">${msg.senderName} (${msg.role})</div>
+        <div style="margin:5px 0">${msg.text}</div>
+        <div style="font-size:9px; opacity:0.5; display:flex; justify-content:space-between">
+            ${new Date(msg.time).toLocaleTimeString('ar-EG')} ${deleteBtn}
         </div>
     `;
-
-    chatBox.appendChild(msgDiv);
+    chatBox.appendChild(div);
     window.scrollTo(0, document.body.scrollHeight);
 });
 
-// نافذة التحكم
+window.deleteMessage = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
+onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
+
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 document.getElementById("profile-btn").onclick = () => document.getElementById("profile-modal").style.display = "flex";
 window.closeModals = () => {
     document.getElementById("auth-modal").style.display = "none";
     document.getElementById("profile-modal").style.display = "none";
 };
-
-// وظيفة المسح (للأدمن)
-window.deleteMessage = function(id) {
-  if (confirm("هل تريد مسح هذه الرسالة نهائياً؟")) {
-      remove(ref(db, "messages/" + id));
-  }
-};
-onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
