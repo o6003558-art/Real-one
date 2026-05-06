@@ -17,8 +17,8 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
 
-// --- حدد إيميل الأدمن هنا ---
-const ADMIN_EMAIL = "o6003558@gmail.com"; // غير ده لإيميلك الحقيقي اللي بتسجل بيه
+// --- ⚠️ ضع إيميلك هنا بالظبط ⚠️ ---
+const ADMIN_EMAIL = "o6003558@gmail.com"; 
 
 let currentUserData = null;
 
@@ -36,10 +36,12 @@ onAuthStateChanged(auth, async (user) => {
         authBtn.onclick = () => signOut(auth);
         profileBtn.style.display = "inline-block";
         
+        // مراقبة بيانات المستخدم الحالي
         const userRef = ref(db, 'users/' + user.uid);
         onValue(userRef, (snapshot) => {
             currentUserData = snapshot.val() || { username: "عضو جديد", lastUpdate: 0 };
-            userInfo.innerText = "أهلاً، " + currentUserData.username + (user.email === ADMIN_EMAIL ? " (Admin)" : "");
+            let adminTag = (user.email === ADMIN_EMAIL) ? " <span style='color:#ff9800'>(Admin 👑)</span>" : "";
+            userInfo.innerHTML = "أهلاً، " + currentUserData.username + adminTag;
         });
     } else {
         inputArea.style.display = "none";
@@ -57,6 +59,7 @@ window.sendMessage = () => {
     if (input.value.trim() && auth.currentUser) {
         push(messagesRef, {
             senderId: auth.currentUser.uid,
+            senderEmail: auth.currentUser.email, // بنخزن الإيميل للتأكد من هوية الأدمن لاحقاً
             text: input.value,
             time: Date.now()
         });
@@ -72,27 +75,33 @@ onChildAdded(messagesRef, (data) => {
     div.classList.add("message");
     div.id = msgId;
     
+    // تحديد الاتجاه: رسايلي أنا تظهر يمين (أو حسب ستايلك)
     const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
     div.classList.add(isMe ? "my-message" : "others-message");
 
-    // ربط اسم المستخدم بشكل حي (Dynamic)
-    const userRef = ref(db, 'users/' + msg.senderId);
-    onValue(userRef, (snapshot) => {
+    // جلب اسم صاحب الرسالة "لايف" عشان لو غيره يتحدث فوراً
+    const senderRef = ref(db, 'users/' + msg.senderId);
+    onValue(senderRef, (snapshot) => {
         const userData = snapshot.val();
-        const displayName = userData ? userData.username : "مستخدم سابق";
+        const displayName = userData ? userData.username : "مستخدم";
         
-        // جلب بيانات المستخدم لمعرفة هل هو أدمن (بناءً على الإيميل من قاعدة البيانات أو لو كان هو أنت)
-        // ملاحظة: لضمان الدقة، الأدمن بيتحدد هنا بناءً على صلاحيتك أنت كـ Viewer
+        // فحص: هل الشخص اللي فاتح الموقع حالياً هو الأدمن؟
         const amIAdmin = auth.currentUser && auth.currentUser.email === ADMIN_EMAIL;
-        const deleteBtn = amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:red; background:none; border:none; cursor:pointer; font-size:10px;">[مسح]</button>` : "";
+        
+        // زرار المسح يظهر للأدمن فقط
+        const deleteBtn = amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:#ff4444; background:none; border:none; cursor:pointer; font-size:11px; font-weight:bold; margin-right:10px;">[حذف]</button>` : "";
+
+        // وسم الأدمن يظهر بجانب اسم الأدمن فقط في الشات
+        const isMsgFromAdmin = msg.senderEmail === ADMIN_EMAIL;
+        const adminBadge = isMsgFromAdmin ? " <span style='color:#ffeb3b; font-size:9px;'>[Admin]</span>" : "";
 
         div.innerHTML = `
-            <div style="font-size:10px; font-weight:bold; color: ${isMe ? '#ffeb3b' : '#fff'}">
-                ${displayName} ${amIAdmin && isMe ? '(Admin)' : ''}
+            <div style="font-size:10px; font-weight:bold; margin-bottom:3px; color: ${isMsgFromAdmin ? '#ffeb3b' : '#fff'}">
+                ${displayName}${adminBadge}
             </div>
-            <div style="margin:5px 0; font-size:15px;">${msg.text}</div>
-            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between">
-                <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
+            <div style="font-size:15px; margin-bottom:5px;">${msg.text}</div>
+            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between; align-items:center;">
+                <span>${new Date(msg.time).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
                 ${deleteBtn}
             </div>
         `;
@@ -102,22 +111,32 @@ onChildAdded(messagesRef, (data) => {
     window.scrollTo(0, document.body.scrollHeight);
 });
 
-// باقي الدوال (Auth, Modals, Delete) تبقى كما هي مع التأكد من إضافة window.
+// دالة الحذف
+window.deleteMessage = (id) => {
+    if(confirm("هل أنت متأكد من حذف هذه الرسالة؟")) {
+        remove(ref(db, "messages/" + id));
+    }
+};
+
+onChildRemoved(messagesRef, (data) => {
+    const el = document.getElementById(data.key);
+    if(el) el.remove();
+});
+
+// باقي دوال الـ Auth والـ Modals
 window.handleAuth = (type) => {
     const email = document.getElementById("email-input").value;
     const pass = document.getElementById("password-input").value;
     if (type === 'login') {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
     } else {
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
             set(ref(db, 'users/' + res.user.uid), { username: "User_" + Math.floor(Math.random()*100), lastUpdate: 0 });
             window.closeModals();
-        }).catch(err => alert(err.message));
+        }).catch(err => alert("خطأ: " + err.message));
     }
 };
 
-window.deleteMessage = (id) => { if(confirm("حذف الرسالة؟")) remove(ref(db, "messages/" + id)); };
-onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => {
     document.getElementById("auth-modal").style.display = "none";
