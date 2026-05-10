@@ -22,6 +22,9 @@
     <div id="input-area" style="display: none;">
         <input type="text" id="message-input" placeholder="اكتب رسالتك هنا...">
         <button id="send-btn" onclick="sendMessage()">إرسال</button>
+        <label for="file-input" style="cursor:pointer; font-size: 22px;">📎</label>
+<input type="file" id="file-input" style="display: none;" onchange="uploadFile(event)">
+
     </div>
 
     <div id="login-notice" style="text-align: center; margin-top: 20px;">
