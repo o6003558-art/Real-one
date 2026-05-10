@@ -20,8 +20,8 @@ const messagesRef = ref(db, "messages");
 const usersRef = ref(db, "users");
 
 // --- ⚠️ إعدادات Cloudinary (بديل الفيزا) ⚠️ ---
-const CLOUD_NAME = "YOUR_CLOUD_NAME"; // ضع اسم الكلاود هنا
-const UPLOAD_PRESET = "YOUR_UPLOAD_PRESET"; // ضع الـ Preset المفتوح هنا
+const CLOUD_NAME = "Real-one"; // ضع اسم الكلاود هنا
+const UPLOAD_PRESET = "Real-one"; // ضع الـ Preset المفتوح هنا
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
 // --- إعدادات الأدمن ---
