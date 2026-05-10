@@ -181,3 +181,27 @@ header {
     font-size: 13px;
     border-top: 1px solid #333;
 }
+
+.download-btn {
+    background-color: #25d366; /* لون أخضر واتساب */
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+    transition: 0.3s;
+}
+
+.download-btn:hover {
+    background-color: #128c7e;
+}
+
+.message img {
+    border: 1px solid rgba(255,255,255,0.1);
+}
