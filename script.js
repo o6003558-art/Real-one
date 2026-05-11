@@ -25,94 +25,64 @@ const ADMIN_EMAIL = "o6003558@gmail.com";
 let allMessages = {}; 
 let userPrefs = JSON.parse(localStorage.getItem('chatSettings')) || { myColor: "#005c4b", othersColor: "#202c33" };
 
-// --- 1. ميزة الـ Smart Scroll ---
+// --- 1. التمرير الذكي ---
 const chatBox = document.getElementById("chat-box");
 const scrollBtn = document.getElementById("smart-scroll-btn");
-
-chatBox.onscroll = () => {
-    // لو إحنا فوق خالص (أو قريب من فوق)، خلي السهم لتحت
-    if (chatBox.scrollTop < 200) {
-        scrollBtn.innerText = "↓";
-    } else {
-        scrollBtn.innerText = "↑";
-    }
-};
-
+chatBox.addEventListener('scroll', () => {
+    scrollBtn.innerText = chatBox.scrollTop < 200 ? "↓" : "↑";
+});
 scrollBtn.onclick = () => {
-    if (scrollBtn.innerText === "↓") {
-        chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
-    } else {
-        chatBox.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    const target = scrollBtn.innerText === "↓" ? chatBox.scrollHeight : 0;
+    chatBox.scrollTo({ top: target, behavior: 'smooth' });
 };
 
-// --- 2. ميزة النجمة (Starring) ---
-window.toggleStar = (msgId) => {
-    const isStarred = allMessages[msgId].starredBy?.includes(auth.currentUser.uid);
-    let currentStars = allMessages[msgId].starredBy || [];
-
-    if (isStarred) {
-        currentStars = currentStars.filter(id => id !== auth.currentUser.uid);
-    } else {
-        currentStars.push(auth.currentUser.uid);
-    }
-    
-    update(ref(db, `messages/${msgId}`), { starredBy: currentStars });
-};
-
-// --- دالة التحميل والألوان ---
-window.saveColors = () => {
-    userPrefs.myColor = document.getElementById('my-msg-color').value;
-    userPrefs.othersColor = document.getElementById('others-msg-color').value;
-    localStorage.setItem('chatSettings', JSON.stringify(userPrefs));
-    location.reload(); 
-};
-
+// --- 2. التحميل ---
 window.downloadMedia = async (url, filename) => {
     try {
         const response = await fetch(url);
         const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = blobUrl; a.download = filename || 'download';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
     } catch (e) { window.open(url, '_blank'); }
 };
 
-// --- تسجيل الدخول والرفع (نفس الكود السابق) ---
-onAuthStateChanged(auth, (user) => {
-    const inputArea = document.getElementById("input-area");
-    const authBtn = document.getElementById("auth-btn");
-    const userInfo = document.getElementById("user-info");
-    if (user) {
-        if(inputArea) inputArea.style.display = "flex";
-        authBtn.innerText = "خروج";
-        onValue(ref(db, 'users/' + user.uid), (snap) => {
-            userInfo.innerHTML = `أهلاً، ${snap.val()?.username || "عضو"} ${user.email === ADMIN_EMAIL ? "👑" : ""}`;
-        });
-    } else { if(inputArea) inputArea.style.display = "none"; authBtn.innerText = "دخول"; }
-});
+// --- 3. النجمة (Starred) ---
+window.toggleStar = (id) => {
+    let msg = allMessages[id];
+    let stars = msg.starredBy || [];
+    const uid = auth.currentUser.uid;
+    stars = stars.includes(uid) ? stars.filter(i => i !== uid) : [...stars, uid];
+    update(ref(db, `messages/${id}`), { starredBy: stars });
+};
 
+// --- 4. الألوان ---
+window.saveColors = () => {
+    userPrefs.myColor = document.getElementById('my-msg-color').value;
+    userPrefs.othersColor = document.getElementById('others-msg-color').value;
+    localStorage.setItem('chatSettings', JSON.stringify(userPrefs));
+    location.reload();
+};
+
+// --- 5. الرفع والارسال ---
 window.uploadFile = async (e) => {
     const file = e.target.files[0];
     if (!file || !auth.currentUser) return;
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
+    formData.append("file", file); formData.append("upload_preset", UPLOAD_PRESET);
     try {
         const res = await fetch(CLOUDINARY_URL, { method: "POST", body: formData });
         const data = await res.json();
-        if (data.secure_url) {
-            push(messagesRef, {
-                senderId: auth.currentUser.uid, senderEmail: auth.currentUser.email,
-                text: document.getElementById("message-input").value,
-                fileUrl: data.secure_url, fileName: file.name,
-                fileType: file.type.startsWith('image/') ? 'image' : 'file',
-                time: Date.now(), starredBy: []
-            });
-            document.getElementById("message-input").value = "";
-        }
-    } catch (err) { alert("خطأ في الرفع"); }
+        push(messagesRef, {
+            senderId: auth.currentUser.uid, senderEmail: auth.currentUser.email,
+            text: document.getElementById("message-input").value,
+            fileUrl: data.secure_url, fileName: file.name,
+            fileType: file.type.startsWith('image/') ? 'image' : 'file',
+            time: Date.now()
+        });
+        document.getElementById("message-input").value = "";
+    } catch (e) { alert("خطأ رفع"); }
 };
 
 window.sendMessage = () => {
@@ -120,92 +90,119 @@ window.sendMessage = () => {
     if (input.value.trim() && auth.currentUser) {
         push(messagesRef, {
             senderId: auth.currentUser.uid, senderEmail: auth.currentUser.email,
-            text: input.value, time: Date.now(), starredBy: []
+            text: input.value, time: Date.now()
         });
         input.value = "";
     }
 };
 
-// --- عرض الرسايل (مع دعم الضغطة المطولة) ---
+// --- 6. عرض الرسائل والضغطة المطولة ---
 onChildAdded(messagesRef, (data) => {
-    const msg = data.val();
-    const msgId = data.key;
-    allMessages[msgId] = msg;
-    renderMessage(msgId, msg);
-    updateMediaList();
+    const msg = data.val(); const id = data.key;
+    allMessages[id] = msg;
+    renderMessage(id, msg);
+});
+
+onChildRemoved(messagesRef, (data) => {
+    document.getElementById(data.key)?.remove();
+    delete allMessages[data.key];
 });
 
 function renderMessage(id, msg) {
-    const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
     let div = document.getElementById(id) || document.createElement("div");
-    div.className = `message ${isMe ? "my-message" : "others-message"}`;
+    const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
     div.id = id;
+    div.className = `message ${isMe ? "my-message" : "others-message"}`;
     div.style.backgroundColor = isMe ? userPrefs.myColor : userPrefs.othersColor;
 
-    // ميزة الضغطة المطولة
-    let pressTimer;
-    div.onmousedown = () => pressTimer = setTimeout(() => window.toggleStar(id), 800);
-    div.onmouseup = () => clearTimeout(pressTimer);
-    div.ontouchstart = () => pressTimer = setTimeout(() => window.toggleStar(id), 800);
-    div.ontouchend = () => clearTimeout(pressTimer);
+    // ميزة النجمة بالضغطة المطولة
+    let timer;
+    div.onmousedown = div.ontouchstart = () => timer = setTimeout(() => window.toggleStar(id), 800);
+    div.onmouseup = div.ontouchend = () => clearTimeout(timer);
 
-    onValue(ref(db, 'users/' + msg.senderId), (snapshot) => {
-        const uName = snapshot.val()?.username || "مستخدم";
+    onValue(ref(db, `users/${msg.senderId}`), (snap) => {
+        const name = snap.val()?.username || "عضو";
         const isStarred = msg.starredBy?.includes(auth.currentUser?.uid);
-        
-        let mediaHtml = "";
+        let media = "";
         if (msg.fileUrl) {
-            if (msg.fileType === 'image') {
-                mediaHtml = `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px;"><button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">📥</button>`;
-            } else {
-                mediaHtml = `<div class="file-box">📄 ${msg.fileName} <button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">📥</button></div>`;
-            }
+            media = msg.fileType === 'image' 
+                ? `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:5px;"><br>` 
+                : `<div style="background:rgba(0,0,0,0.2);padding:5px;">📄 ${msg.fileName}</div>`;
+            media += `<button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}','${msg.fileName}')">📥 تحميل</button>`;
         }
-
         div.innerHTML = `
-            <small style="display:block; font-weight:bold;">${uName} ${isStarred ? '<span class="star-icon">⭐</span>' : ''}</small>
-            ${mediaHtml} <div>${msg.text || ""}</div>
-            <div style="font-size:9px; opacity:0.5; margin-top:5px;">
-                ${new Date(msg.time).toLocaleTimeString('ar-EG')}
-                ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="window.deleteMsg('${id}')" style="color:red; cursor:pointer;"> [حذف]</span>` : ""}
+            <small style="font-weight:bold; color:#00a884;">${name} ${isStarred ? '⭐' : ''}</small>
+            <div style="margin-top:5px;">${media}${msg.text || ""}</div>
+            <div style="font-size:9px; opacity:0.5; margin-top:5px; display:flex; justify-content:space-between;">
+                <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
+                ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="window.deleteMsg('${id}')" style="color:red;cursor:pointer;">حذف</span>` : ""}
             </div>
         `;
     });
-    if (!document.getElementById(id)) chatBox.appendChild(div);
+    if (!div.parentElement) chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// --- تحديث قائمة الوسائط والمفضلة ---
+// --- 7. المكتبة ---
 window.updateMediaList = () => {
-    const imgCont = document.getElementById('media-images');
-    const starCont = document.getElementById('media-starred');
-    if(!imgCont) return;
-    
-    imgCont.innerHTML = ''; starCont.innerHTML = '';
-    // (باقي كود الصور والروابط كما هو...)
-
+    const tabs = { images: '', files: '', links: '', starred: '' };
     Object.keys(allMessages).forEach(id => {
         const m = allMessages[id];
-        // إضافة للمفضلة
-        if (m.starredBy?.includes(auth.currentUser?.uid)) {
-            starCont.innerHTML += `
-                <div class="starred-msg-item">
-                    <small>من: ${m.senderEmail}</small>
-                    <div>${m.text || (m.fileUrl ? "[ملف/صورة]" : "")}</div>
-                    <button onclick="window.toggleStar('${id}')" style="font-size:10px;">إزالة النجمة</button>
-                </div>`;
+        if (m.fileUrl) {
+            if (m.fileType === 'image') tabs.images += `<img src="${m.fileUrl}" class="media-thumb" onclick="window.open('${m.fileUrl}')">`;
+            else tabs.files += `<div style="padding:10px;border-bottom:1px solid #444;"><a href="${m.fileUrl}" target="_blank">📄 ${m.fileName}</a></div>`;
         }
-        // ... (كود الروابط والصور والملفات)
+        const links = m.text?.match(/(https?:\/\/[^\s]+)/g);
+        if (links) links.forEach(l => tabs.links += `<div style="padding:10px;border-bottom:1px solid #444;"><a href="${l}" target="_blank">🔗 ${l}</a></div>`);
+        if (m.starredBy?.includes(auth.currentUser?.uid)) {
+            tabs.starred += `<div style="padding:10px;border-bottom:1px solid #444;">⭐ ${m.text || "[وسائط]"}<br><small onclick="window.toggleStar('${id}')" style="color:red;cursor:pointer;">إزالة</small></div>`;
+        }
     });
+    document.getElementById('media-images').innerHTML = tabs.images;
+    document.getElementById('media-files').innerHTML = tabs.files;
+    document.getElementById('media-links').innerHTML = tabs.links;
+    document.getElementById('media-starred').innerHTML = tabs.starred;
 };
 
-// الوظائف العامة
-window.deleteMsg = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
+// --- 8. التحكم والـ Auth ---
+onAuthStateChanged(auth, (user) => {
+    const inputArea = document.getElementById("input-area");
+    if (user) {
+        inputArea.style.display = "flex";
+        document.getElementById("login-notice").style.display = "none";
+        document.getElementById("auth-btn").innerText = "خروج";
+        onValue(ref(db, `users/${user.uid}`), snap => {
+            document.getElementById("user-info").innerHTML = `أهلاً، ${snap.val()?.username || "عضو"}`;
+        });
+    } else {
+        inputArea.style.display = "none";
+        document.getElementById("login-notice").style.display = "block";
+        document.getElementById("auth-btn").innerText = "دخول";
+    }
+});
+
+window.handleAuth = (type) => {
+    const email = document.getElementById("email-input").value;
+    const pass = document.getElementById("password-input").value;
+    const name = document.getElementById("reg-username-input").value;
+    if (type === 'signup') {
+        createUserWithEmailAndPassword(auth, email, pass).then(res => {
+            set(ref(db, `users/${res.user.uid}`), { username: name, email: email });
+            window.closeModals();
+        }).catch(e => alert(e.message));
+    } else {
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(e => alert(e.message));
+    }
+};
+
+window.deleteMsg = (id) => { if(confirm("حذف؟")) remove(ref(db, `messages/${id}`)); };
+window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+document.getElementById("settings-btn").onclick = () => document.getElementById("settings-modal").style.display = "flex";
 document.getElementById("media-list-btn").onclick = () => { window.updateMediaList(); document.getElementById("media-modal").style.display = "flex"; };
 window.showTab = (tabId) => {
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).style.display = 'block';
-    if(event) event.target.classList.add('active');
+    event.target.classList.add('active');
 };
