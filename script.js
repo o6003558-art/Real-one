@@ -20,8 +20,8 @@ const messagesRef = ref(db, "messages");
 const usersRef = ref(db, "users");
 
 // --- إعدادات Cloudinary (تذكر استبدالها) ---
-const CLOUD_NAME = "YOUR_CLOUD_NAME"; 
-const UPLOAD_PRESET = "YOUR_UPLOAD_PRESET"; 
+const CLOUD_NAME = ""; 
+const UPLOAD_PRESET = "Real-one"; 
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
 const ADMIN_EMAIL = "o6003558@gmail.com"; 
