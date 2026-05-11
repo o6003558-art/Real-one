@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getDatabase, ref, push, onChildAdded, remove, onChildRemoved, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- إعدادات Firebase (نفس إعداداتك) ---
+// --- إعدادات Firebase ---
 const firebaseConfig = {
   apiKey: "AIzaSyAMV3-20MM0bvwQ8xrofLyY_h2y7rlUd90",
   authDomain: "real-ffb38.firebaseapp.com",
@@ -19,25 +19,26 @@ const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
 const usersRef = ref(db, "users");
 
-// --- إعدادات Cloudinary (تذكر استبدالها) ---
+// --- إعدادات Cloudinary ---
 const CLOUD_NAME = "dmrcz5jbh"; 
 const UPLOAD_PRESET = "Real-one"; 
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
 const ADMIN_EMAIL = "o6003558@gmail.com"; 
-let allMessages = {}; // لتخزين الرسايل وبناء قائمة الوسائط
+let allMessages = {}; 
 
-// --- [ليفل الوحش] نظام الألوان الشخصية (localStorage) ---
+// --- [ليفل الوحش] الألوان الشخصية ---
 let userPrefs = JSON.parse(localStorage.getItem('chatSettings')) || {
     myColor: "#005c4b",
     othersColor: "#202c33"
 };
 
+// لازم نربط الدوال بـ window عشان الـ HTML يشوفها
 window.saveColors = () => {
     userPrefs.myColor = document.getElementById('my-msg-color').value;
     userPrefs.othersColor = document.getElementById('others-msg-color').value;
     localStorage.setItem('chatSettings', JSON.stringify(userPrefs));
-    location.reload(); // إعادة تحميل لتطبيق الألوان على كل الشات
+    location.reload(); 
 };
 
 window.resetColors = () => {
@@ -54,8 +55,8 @@ onAuthStateChanged(auth, (user) => {
     const userInfo = document.getElementById("user-info");
 
     if (user) {
-        inputArea.style.display = "flex";
-        loginNotice.style.display = "none";
+        if(inputArea) inputArea.style.display = "flex";
+        if(loginNotice) loginNotice.style.display = "none";
         authBtn.innerText = "خروج";
         authBtn.onclick = () => signOut(auth);
         profileBtn.style.display = "inline-block";
@@ -64,9 +65,10 @@ onAuthStateChanged(auth, (user) => {
             userInfo.innerHTML = `أهلاً، ${data.username} ${user.email === ADMIN_EMAIL ? "👑" : ""}`;
         });
     } else {
-        inputArea.style.display = "none";
-        loginNotice.style.display = "block";
+        if(inputArea) inputArea.style.display = "none";
+        if(loginNotice) loginNotice.style.display = "block";
         authBtn.innerText = "دخول";
+        authBtn.onclick = () => window.openAuthModal();
         userInfo.innerText = "زائر";
     }
 });
@@ -75,6 +77,9 @@ onAuthStateChanged(auth, (user) => {
 window.uploadFile = async (e) => {
     const file = e.target.files[0];
     if (!file || !auth.currentUser) return;
+    const inputMsg = document.getElementById("message-input");
+    inputMsg.placeholder = "جاري الرفع... ⏳";
+    
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
@@ -86,15 +91,16 @@ window.uploadFile = async (e) => {
             push(messagesRef, {
                 senderId: auth.currentUser.uid,
                 senderEmail: auth.currentUser.email,
-                text: document.getElementById("message-input").value,
+                text: inputMsg.value,
                 fileUrl: data.secure_url,
                 fileName: file.name,
                 fileType: file.type.startsWith('image/') ? 'image' : 'file',
                 time: Date.now()
             });
-            document.getElementById("message-input").value = "";
+            inputMsg.value = "";
         }
     } catch (err) { alert("خطأ في الرفع"); }
+    inputMsg.placeholder = "اكتب رسالتك هنا...";
 };
 
 window.sendMessage = () => {
@@ -110,17 +116,18 @@ window.sendMessage = () => {
     }
 };
 
-// --- عرض الرسايل وبناء قائمة الوسائط ---
+// --- عرض الرسايل ---
 onChildAdded(messagesRef, (data) => {
     const msg = data.val();
     const msgId = data.key;
-    allMessages[msgId] = msg; // حفظ في الذاكرة المؤقتة
+    allMessages[msgId] = msg; 
     renderMessage(msgId, msg);
     updateMediaList();
 });
 
 onChildRemoved(messagesRef, (data) => {
-    document.getElementById(data.key)?.remove();
+    const element = document.getElementById(data.key);
+    if(element) element.remove();
     delete allMessages[data.key];
     updateMediaList();
 });
@@ -132,7 +139,6 @@ function renderMessage(id, msg) {
     div.className = `message ${isMe ? "my-message" : "others-message"}`;
     div.id = id;
 
-    // تطبيق الألوان من الـ localStorage
     div.style.backgroundColor = isMe ? userPrefs.myColor : userPrefs.othersColor;
 
     onValue(ref(db, 'users/' + msg.senderId), (snapshot) => {
@@ -140,9 +146,9 @@ function renderMessage(id, msg) {
         let mediaHtml = "";
         if (msg.fileUrl) {
             if (msg.fileType === 'image') {
-                mediaHtml = `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px;" onclick="window.open('${msg.fileUrl}')">`;
+                mediaHtml = `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;" onclick="window.open('${msg.fileUrl}')">`;
             } else {
-                mediaHtml = `<div class="file-box"><a href="${msg.fileUrl}" target="_blank">📄 ${msg.fileName}</a></div>`;
+                mediaHtml = `<div style="background:rgba(0,0,0,0.1); padding:8px; border-radius:5px; margin-bottom:5px;"><a href="${msg.fileUrl}" target="_blank" style="color:#2196f3; text-decoration:none;">📄 ${msg.fileName}</a></div>`;
             }
         }
 
@@ -152,7 +158,7 @@ function renderMessage(id, msg) {
             <div>${msg.text || ""}</div>
             <div style="font-size:9px; text-align:left; opacity:0.5; margin-top:5px;">
                 ${new Date(msg.time).toLocaleTimeString('ar-EG')}
-                ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="deleteMsg('${id}')" style="color:red; cursor:pointer; margin-right:10px;">[حذف]</span>` : ""}
+                ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="window.deleteMsg('${id}')" style="color:#ff4444; cursor:pointer; margin-right:10px; font-weight:bold;">[حذف]</span>` : ""}
             </div>
         `;
     });
@@ -160,55 +166,58 @@ function renderMessage(id, msg) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// --- [ليفل الوحش] تحديث قائمة الوسائط والروابط ---
-function updateMediaList() {
+// --- الوسائط والروابط ---
+window.updateMediaList = () => {
     const imgCont = document.getElementById('media-images');
     const fileCont = document.getElementById('media-files');
     const linkCont = document.getElementById('media-links');
     
+    if(!imgCont) return; // تأكد إن المودال موجود
+
     imgCont.innerHTML = ''; fileCont.innerHTML = ''; linkCont.innerHTML = '';
 
     Object.keys(allMessages).forEach(id => {
         const m = allMessages[id];
-        
-        // صور
         if (m.fileUrl && m.fileType === 'image') {
-            imgCont.innerHTML += `<img src="${m.fileUrl}" onclick="window.open('${m.fileUrl}')" class="media-thumb">`;
+            imgCont.innerHTML += `<img src="${m.fileUrl}" onclick="window.open('${m.fileUrl}')" style="width:30%; margin:1.5%; aspect-ratio:1; object-fit:cover; border-radius:5px; cursor:pointer;">`;
         }
-        // ملفات
         else if (m.fileUrl && m.fileType === 'file') {
-            fileCont.innerHTML += `<div class="media-item"><a href="${m.fileUrl}" target="_blank">📄 ${m.fileName}</a></div>`;
+            fileCont.innerHTML += `<div style="padding:10px; border-bottom:1px solid #333;"><a href="${m.fileUrl}" target="_blank" style="color:#2196f3; text-decoration:none;">📄 ${m.fileName}</a></div>`;
         }
-        
-        // روابط (نبحث عن http في النص)
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         if (m.text && m.text.match(urlRegex)) {
             const links = m.text.match(urlRegex);
             links.forEach(link => {
-                linkCont.innerHTML += `<div class="media-item"><a href="${link}" target="_blank">🔗 ${link}</a></div>`;
+                linkCont.innerHTML += `<div style="padding:10px; border-bottom:1px solid #333;"><a href="${link}" target="_blank" style="color:#4caf50; text-decoration:none;">🔗 ${link}</a></div>`;
             });
         }
     });
 }
 
-// --- وظائف عامة ---
-window.deleteMsg = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
+// --- وظائف عامة (ربط بـ window) ---
+window.deleteMsg = (id) => { if(confirm("حذف هذه الرسالة؟")) remove(ref(db, "messages/" + id)); };
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => {
     document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
 };
+
+// ربط الأزرار بالأحداث
 document.getElementById("settings-btn").onclick = () => {
     document.getElementById('my-msg-color').value = userPrefs.myColor;
     document.getElementById('others-msg-color').value = userPrefs.othersColor;
     document.getElementById("settings-modal").style.display = "flex";
 };
-document.getElementById("media-list-btn").onclick = () => document.getElementById("media-modal").style.display = "flex";
+
+document.getElementById("media-list-btn").onclick = () => {
+    window.updateMediaList();
+    document.getElementById("media-modal").style.display = "flex";
+};
 
 window.showTab = (tabId) => {
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).style.display = 'block';
-    event.target.classList.add('active');
+    if(event) event.target.classList.add('active');
 };
 
 window.handleAuth = (type) => {
@@ -216,12 +225,13 @@ window.handleAuth = (type) => {
     const pass = document.getElementById("password-input").value;
     const name = document.getElementById("reg-username-input").value;
     if (type === 'signup') {
+        if(!name) return alert("الاسم مطلوب!");
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
             set(ref(db, 'users/' + res.user.uid), { username: name, email: email });
             window.closeModals();
-        }).catch(err => alert(err.message));
+        }).catch(err => alert("خطأ: " + err.message));
     } else {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
     }
 };
 
