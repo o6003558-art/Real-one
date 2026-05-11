@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getDatabase, ref, push, onChildAdded, remove, onChildRemoved, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- 1. إعدادات Firebase ---
+// --- إعدادات Firebase (نفس إعداداتك) ---
 const firebaseConfig = {
   apiKey: "AIzaSyAMV3-20MM0bvwQ8xrofLyY_h2y7rlUd90",
   authDomain: "real-ffb38.firebaseapp.com",
@@ -19,18 +19,34 @@ const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
 const usersRef = ref(db, "users");
 
-// --- 2. إعدادات Cloudinary (تأكد من تغيير هذه القيم) ---
-const CLOUD_NAME = "dmrcz5jbh"; 
-const UPLOAD_PRESET = "Real-one"; 
+// --- إعدادات Cloudinary (تذكر استبدالها) ---
+const CLOUD_NAME = "YOUR_CLOUD_NAME"; 
+const UPLOAD_PRESET = "YOUR_UPLOAD_PRESET"; 
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
-// --- 3. إعدادات الأدمن ---
 const ADMIN_EMAIL = "o6003558@gmail.com"; 
+let allMessages = {}; // لتخزين الرسايل وبناء قائمة الوسائط
 
-let currentUserData = null;
+// --- [ليفل الوحش] نظام الألوان الشخصية (localStorage) ---
+let userPrefs = JSON.parse(localStorage.getItem('chatSettings')) || {
+    myColor: "#005c4b",
+    othersColor: "#202c33"
+};
 
-// مراقبة حالة تسجيل الدخول وتحديث الواجهة
-onAuthStateChanged(auth, async (user) => {
+window.saveColors = () => {
+    userPrefs.myColor = document.getElementById('my-msg-color').value;
+    userPrefs.othersColor = document.getElementById('others-msg-color').value;
+    localStorage.setItem('chatSettings', JSON.stringify(userPrefs));
+    location.reload(); // إعادة تحميل لتطبيق الألوان على كل الشات
+};
+
+window.resetColors = () => {
+    localStorage.removeItem('chatSettings');
+    location.reload();
+};
+
+// --- نظام تسجيل الدخول ---
+onAuthStateChanged(auth, (user) => {
     const inputArea = document.getElementById("input-area");
     const loginNotice = document.getElementById("login-notice");
     const authBtn = document.getElementById("auth-btn");
@@ -43,64 +59,44 @@ onAuthStateChanged(auth, async (user) => {
         authBtn.innerText = "خروج";
         authBtn.onclick = () => signOut(auth);
         profileBtn.style.display = "inline-block";
-        
         onValue(ref(db, 'users/' + user.uid), (snapshot) => {
-            currentUserData = snapshot.val() || { username: "عضو جديد" };
-            let adminTag = (user.email === ADMIN_EMAIL) ? " <span style='color:#ff9800'>(Admin 👑)</span>" : "";
-            userInfo.innerHTML = `أهلاً، ${currentUserData.username} ${adminTag}`;
+            let data = snapshot.val() || { username: "عضو جديد" };
+            userInfo.innerHTML = `أهلاً، ${data.username} ${user.email === ADMIN_EMAIL ? "👑" : ""}`;
         });
     } else {
         inputArea.style.display = "none";
         loginNotice.style.display = "block";
         authBtn.innerText = "دخول";
-        authBtn.onclick = () => window.openAuthModal();
-        profileBtn.style.display = "none";
         userInfo.innerText = "زائر";
-        currentUserData = null;
     }
 });
 
-// --- 4. وظيفة الرفع لـ Cloudinary ---
+// --- وظيفة الرفع والارسال ---
 window.uploadFile = async (e) => {
     const file = e.target.files[0];
     if (!file || !auth.currentUser) return;
-
-    const inputMsg = document.getElementById("message-input");
-    const originalPlaceholder = inputMsg.placeholder;
-    inputMsg.placeholder = "جاري رفع الملف... ⏳";
-    inputMsg.disabled = true;
-
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
 
     try {
-        const response = await fetch(CLOUDINARY_URL, { method: "POST", body: formData });
-        const data = await response.json();
-
+        const res = await fetch(CLOUDINARY_URL, { method: "POST", body: formData });
+        const data = await res.json();
         if (data.secure_url) {
-            const isImage = file.type.startsWith('image/');
             push(messagesRef, {
                 senderId: auth.currentUser.uid,
                 senderEmail: auth.currentUser.email,
-                text: inputMsg.value,
+                text: document.getElementById("message-input").value,
                 fileUrl: data.secure_url,
                 fileName: file.name,
-                fileType: isImage ? 'image' : 'file',
+                fileType: file.type.startsWith('image/') ? 'image' : 'file',
                 time: Date.now()
             });
-            inputMsg.value = "";
+            document.getElementById("message-input").value = "";
         }
-    } catch (error) {
-        alert("خطأ في الرفع: " + error.message);
-    } finally {
-        inputMsg.placeholder = originalPlaceholder;
-        inputMsg.disabled = false;
-        e.target.value = ""; 
-    }
+    } catch (err) { alert("خطأ في الرفع"); }
 };
 
-// إرسال رسالة نصية عادية
 window.sendMessage = () => {
     const input = document.getElementById("message-input");
     if (input.value.trim() && auth.currentUser) {
@@ -114,107 +110,124 @@ window.sendMessage = () => {
     }
 };
 
-// دالة التحميل البرمجي (لإجبار المتصفح على تحميل الملف بدلاً من فتحه)
-window.downloadMedia = async (url, filename) => {
-    try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename || 'download';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-        window.open(url, '_blank'); // fallback لو حصل مشكلة في الـ fetch
-    }
-};
-
-// --- 5. عرض الرسائل في الشات ---
+// --- عرض الرسايل وبناء قائمة الوسائط ---
 onChildAdded(messagesRef, (data) => {
-    const chatBox = document.getElementById("chat-box");
     const msg = data.val();
     const msgId = data.key;
+    allMessages[msgId] = msg; // حفظ في الذاكرة المؤقتة
+    renderMessage(msgId, msg);
+    updateMediaList();
+});
+
+onChildRemoved(messagesRef, (data) => {
+    document.getElementById(data.key)?.remove();
+    delete allMessages[data.key];
+    updateMediaList();
+});
+
+function renderMessage(id, msg) {
+    const chatBox = document.getElementById("chat-box");
+    const isMe = auth.currentUser && msg.senderId === auth.currentUser.uid;
     const div = document.createElement("div");
-    div.className = `message ${auth.currentUser && msg.senderId === auth.currentUser.uid ? "my-message" : "others-message"}`;
-    div.id = msgId;
+    div.className = `message ${isMe ? "my-message" : "others-message"}`;
+    div.id = id;
+
+    // تطبيق الألوان من الـ localStorage
+    div.style.backgroundColor = isMe ? userPrefs.myColor : userPrefs.othersColor;
 
     onValue(ref(db, 'users/' + msg.senderId), (snapshot) => {
-        const userData = snapshot.val();
-        const displayName = userData ? userData.username : "مستخدم";
-        const amIAdmin = auth.currentUser?.email === ADMIN_EMAIL;
-        const isMsgFromAdmin = msg.senderEmail === ADMIN_EMAIL;
-
+        const uName = snapshot.val()?.username || "مستخدم";
         let mediaHtml = "";
         if (msg.fileUrl) {
             if (msg.fileType === 'image') {
-                mediaHtml = `
-                    <img src="${msg.fileUrl}" style="max-width:100%; border-radius:10px; margin-bottom:5px; cursor:pointer;" onclick="window.open('${msg.fileUrl}')">
-                    <button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">
-                        📥 حفظ الصورة
-                    </button>
-                `;
+                mediaHtml = `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px;" onclick="window.open('${msg.fileUrl}')">`;
             } else {
-                mediaHtml = `
-                    <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; margin-bottom:5px;">
-                        <span style="display:block; font-size:12px; margin-bottom:5px;">📄 ${msg.fileName}</span>
-                        <button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">
-                            📥 تحميل الملف
-                        </button>
-                    </div>
-                `;
+                mediaHtml = `<div class="file-box"><a href="${msg.fileUrl}" target="_blank">📄 ${msg.fileName}</a></div>`;
             }
         }
 
-        let textHtml = msg.text ? `<div style="font-size:15px; margin:5px 0;">${msg.text}</div>` : "";
-
         div.innerHTML = `
-            <div style="font-size:10px; font-weight:bold; color: ${isMsgFromAdmin ? '#ffeb3b' : '#fff'}; margin-bottom:4px;">
-                ${displayName} ${isMsgFromAdmin ? '[Admin]' : ''}
-            </div>
+            <small style="display:block; font-weight:bold; opacity:0.8; margin-bottom:5px;">${uName}</small>
             ${mediaHtml}
-            ${textHtml}
-            <div style="font-size:9px; opacity:0.6; display:flex; justify-content:space-between; margin-top:5px;">
-                <span>${new Date(msg.time).toLocaleTimeString('ar-EG')}</span>
-                ${amIAdmin ? `<button onclick="window.deleteMessage('${msgId}')" style="color:#ff4d4d; background:none; border:none; cursor:pointer; font-weight:bold;">[حذف]</button>` : ""}
+            <div>${msg.text || ""}</div>
+            <div style="font-size:9px; text-align:left; opacity:0.5; margin-top:5px;">
+                ${new Date(msg.time).toLocaleTimeString('ar-EG')}
+                ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="deleteMsg('${id}')" style="color:red; cursor:pointer; margin-right:10px;">[حذف]</span>` : ""}
             </div>
         `;
     });
     chatBox.appendChild(div);
-    window.scrollTo(0, document.body.scrollHeight);
-});
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-// --- 6. وظائف الحساب والمنبثقات ---
+// --- [ليفل الوحش] تحديث قائمة الوسائط والروابط ---
+function updateMediaList() {
+    const imgCont = document.getElementById('media-images');
+    const fileCont = document.getElementById('media-files');
+    const linkCont = document.getElementById('media-links');
+    
+    imgCont.innerHTML = ''; fileCont.innerHTML = ''; linkCont.innerHTML = '';
+
+    Object.keys(allMessages).forEach(id => {
+        const m = allMessages[id];
+        
+        // صور
+        if (m.fileUrl && m.fileType === 'image') {
+            imgCont.innerHTML += `<img src="${m.fileUrl}" onclick="window.open('${m.fileUrl}')" class="media-thumb">`;
+        }
+        // ملفات
+        else if (m.fileUrl && m.fileType === 'file') {
+            fileCont.innerHTML += `<div class="media-item"><a href="${m.fileUrl}" target="_blank">📄 ${m.fileName}</a></div>`;
+        }
+        
+        // روابط (نبحث عن http في النص)
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        if (m.text && m.text.match(urlRegex)) {
+            const links = m.text.match(urlRegex);
+            links.forEach(link => {
+                linkCont.innerHTML += `<div class="media-item"><a href="${link}" target="_blank">🔗 ${link}</a></div>`;
+            });
+        }
+    });
+}
+
+// --- وظائف عامة ---
+window.deleteMsg = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
+window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
+window.closeModals = () => {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+};
+document.getElementById("settings-btn").onclick = () => {
+    document.getElementById('my-msg-color').value = userPrefs.myColor;
+    document.getElementById('others-msg-color').value = userPrefs.othersColor;
+    document.getElementById("settings-modal").style.display = "flex";
+};
+document.getElementById("media-list-btn").onclick = () => document.getElementById("media-modal").style.display = "flex";
+
+window.showTab = (tabId) => {
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).style.display = 'block';
+    event.target.classList.add('active');
+};
+
 window.handleAuth = (type) => {
     const email = document.getElementById("email-input").value;
     const pass = document.getElementById("password-input").value;
-    const regName = document.getElementById("reg-username-input")?.value.trim();
-
+    const name = document.getElementById("reg-username-input").value;
     if (type === 'signup') {
-        if (!regName) return alert("الاسم مطلوب للتسجيل!");
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
-            set(ref(db, 'users/' + res.user.uid), { username: regName, email: email, joinDate: Date.now() });
+            set(ref(db, 'users/' + res.user.uid), { username: name, email: email });
             window.closeModals();
-        }).catch(err => alert("خطأ: " + err.message));
+        }).catch(err => alert(err.message));
     } else {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
     }
-};
-
-window.deleteMessage = (id) => { if(confirm("هل تريد حذف هذه الرسالة؟")) remove(ref(db, "messages/" + id)); };
-onChildRemoved(messagesRef, (data) => document.getElementById(data.key)?.remove());
-
-window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
-window.closeModals = () => {
-    document.getElementById("auth-modal").style.display = "none";
-    document.getElementById("profile-modal").style.display = "none";
 };
 
 document.getElementById("profile-btn").onclick = () => document.getElementById("profile-modal").style.display = "flex";
 document.getElementById("save-username-btn").onclick = () => {
-    const newName = document.getElementById("username-input").value.trim();
-    if (newName) update(ref(db, 'users/' + auth.currentUser.uid), { username: newName });
+    const n = document.getElementById("username-input").value;
+    if(n) update(ref(db, 'users/' + auth.currentUser.uid), { username: n });
     window.closeModals();
 };
