@@ -83,4 +83,12 @@ header {
 
 .btn { cursor: pointer; border: none; padding: 8px 15px; border-radius: 20px; font-family: inherit; font-weight: bold; }
 .primary { background: #00a884; color: white; }
-.icon-btn { background: none; color: #b1b3b5; font-size: 22px; }
+
+.icon-btn { font-size: 20px; background: none; border: none; cursor: pointer; padding: 5px; }
+.tabs { display: flex; border-bottom: 1px solid #444; margin-bottom: 15px; }
+.tab-btn { flex: 1; padding: 10px; background: none; border: none; color: #ccc; cursor: pointer; }
+.tab-btn.active { color: #ff9800; border-bottom: 2px solid #ff9800; }
+.media-thumb { width: 30%; margin: 1.5%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; cursor: pointer; }
+.media-item { padding: 10px; border-bottom: 1px solid #333; word-break: break-all; }
+.media-item a { color: #2196f3; text-decoration: none; }
+.file-box { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 5px; margin: 5px 0; }
