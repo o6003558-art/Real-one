@@ -57,16 +57,16 @@ header {
 /* رسايلي أنا (يمين - أحمر) */
 .my-message {
     align-self: flex-start;
-    background: #e74c3c !important;
-    color: white !important;
+    background: #e74c3c ;
+    color: white ;
     border-bottom-right-radius: 4px;
 }
 
 /* رسايل الآخرين (شمال - أسود) */
 .others-message {
     align-self: flex-end;
-    background: #1e2329 !important; /* أسود فاتح شوية عشان يبان */
-    color: white !important;
+    background: #1e2329 ; /* أسود فاتح شوية عشان يبان */
+    color: white ;
     border: 1px solid #333;
     border-bottom-left-radius: 4px;
 }
