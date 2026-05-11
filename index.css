@@ -47,6 +47,8 @@ header {
     font-family: "zain"; 
     border-radius:15px; 
 } 
+
+
 /* زرار السكرول */
 .scroll-btn {
     position: fixed;
