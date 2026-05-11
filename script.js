@@ -20,7 +20,7 @@ const messagesRef = ref(db, "messages");
 const usersRef = ref(db, "users");
 
 // --- إعدادات Cloudinary (تذكر استبدالها) ---
-const CLOUD_NAME = ""; 
+const CLOUD_NAME = "dmrcz5jbh"; 
 const UPLOAD_PRESET = "Real-one"; 
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
