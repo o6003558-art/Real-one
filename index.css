@@ -42,6 +42,11 @@ header {
 .my-message { align-self: flex-start; background: #005c4b; border-bottom-right-radius: 2px; }
 .others-message { align-self: flex-end; background: #202c33; border-bottom-left-radius: 2px; }
 
+#send-btn {
+    padding:4px ;
+    font-family: "zain"; 
+    border-radius:15px; 
+} 
 /* زرار السكرول */
 .scroll-btn {
     position: fixed;
