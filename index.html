@@ -12,6 +12,7 @@
     <header>
         <div id="user-info">جاري التحميل...</div>
         <div id="header-controls">
+            <button id="starred-list-btn" class="btn icon-btn" title="الرسائل المميزة">⭐</button>
             <button id="media-list-btn" class="btn icon-btn" title="الوسائط والروابط">📁</button>
             <button id="settings-btn" class="btn icon-btn" title="الإعدادات">⚙️</button>
             <button id="auth-btn" class="btn" onclick="openAuthModal()">دخول</button>
@@ -20,6 +21,8 @@
     </header>
 
     <div id="chat-box"></div>
+
+    <button id="smart-scroll-btn" class="scroll-btn">↓</button>
 
     <div id="input-area" style="display: none;">
         <label for="file-input" style="cursor:pointer; font-size: 22px; margin-left: 10px;">📎</label>
@@ -36,9 +39,9 @@
         <div class="modal-content">
             <span class="close-btn" onclick="closeModals()">&times;</span>
             <h3>إعدادات المظهر 🎨</h3>
-            <p>تغيير لون رسائلك (عندك إنت بس):</p>
+            <p>لون رسائلك:</p>
             <input type="color" id="my-msg-color" value="#005c4b">
-            <p>تغيير لون رسائل الآخرين:</p>
+            <p>لون رسائل الآخرين:</p>
             <input type="color" id="others-msg-color" value="#202c33">
             <button onclick="saveColors()" class="btn primary" style="width: 100%; margin-top: 15px;">حفظ الألوان</button>
             <button onclick="resetColors()" class="btn" style="width: 100%; margin-top: 5px; background: #555;">إعادة الافتراضي</button>
@@ -48,28 +51,32 @@
     <div id="media-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 500px; height: 80vh; overflow-y: auto;">
             <span class="close-btn" onclick="closeModals()">&times;</span>
-            <h3>الوسائط والروابط 📁</h3>
+            <h3>المكتبة 📁</h3>
             <div class="tabs">
                 <button class="tab-btn active" onclick="showTab('media-images')">صور</button>
                 <button class="tab-btn" onclick="showTab('media-files')">ملفات</button>
                 <button class="tab-btn" onclick="showTab('media-links')">روابط</button>
+                <button class="tab-btn" onclick="showTab('media-starred')">⭐ مفضلة</button>
             </div>
             <div id="media-images" class="tab-content"></div>
             <div id="media-files" class="tab-content" style="display:none;"></div>
             <div id="media-links" class="tab-content" style="display:none;"></div>
+            <div id="media-starred" class="tab-content" style="display:none;"></div>
         </div>
     </div>
 
     <div id="auth-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModals()">&times;</span>
-            <h3>تسجيل دخول</h3>
+            <h3>تسجيل دخول / حساب جديد</h3>
             <input type="email" id="email-input" placeholder="البريد الإلكتروني">
             <input type="password" id="password-input" placeholder="كلمة المرور">
-            <input type="text" id="reg-username-input" placeholder="اسم المستخدم (للتسجيل الجديد)">
-            <div class="modal-actions" style="margin-top: 15px;">
-                <button onclick="handleAuth('login')" class="btn primary">دخول</button>
-                <button onclick="handleAuth('signup')" class="btn">إنشاء حساب</button>
+            <hr style="margin: 15px 0; border: 0.5px solid #444;">
+            <p style="font-size: 12px; color: #aaa;">للأعضاء الجدد فقط:</p>
+            <input type="text" id="reg-username-input" placeholder="اسم المستخدم (مطلوب للتسجيل)">
+            <div class="modal-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="handleAuth('login')" class="btn primary" style="flex:1;">دخول</button>
+                <button onclick="handleAuth('signup')" class="btn" style="flex:1;">إنشاء حساب</button>
             </div>
         </div>
     </div>
@@ -77,7 +84,7 @@
     <div id="profile-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModals()">&times;</span>
-            <h3>تغيير اسم المستخدم</h3>
+            <h3>تعديل اسم المستخدم</h3>
             <input type="text" id="username-input" placeholder="اسمك الجديد">
             <button id="save-username-btn" class="btn primary" style="width: 100%; margin-top: 10px;">حفظ التعديل</button>
         </div>
