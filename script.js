@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getDatabase, ref, push, onChildAdded, remove, onChildRemoved, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- إعدادات Firebase ---
+// --- 1. إعدادات Firebase ---
 const firebaseConfig = {
   apiKey: "AIzaSyAMV3-20MM0bvwQ8xrofLyY_h2y7rlUd90",
   authDomain: "real-ffb38.firebaseapp.com",
@@ -17,9 +17,8 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 const messagesRef = ref(db, "messages");
-const usersRef = ref(db, "users");
 
-// --- إعدادات Cloudinary ---
+// --- 2. إعدادات Cloudinary ---
 const CLOUD_NAME = "dmrcz5jbh"; 
 const UPLOAD_PRESET = "Real-one"; 
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
@@ -27,13 +26,12 @@ const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/uploa
 const ADMIN_EMAIL = "o6003558@gmail.com"; 
 let allMessages = {}; 
 
-// --- [ليفل الوحش] الألوان الشخصية ---
+// --- 3. نظام الألوان (LocalStorage) ---
 let userPrefs = JSON.parse(localStorage.getItem('chatSettings')) || {
     myColor: "#005c4b",
     othersColor: "#202c33"
 };
 
-// لازم نربط الدوال بـ window عشان الـ HTML يشوفها
 window.saveColors = () => {
     userPrefs.myColor = document.getElementById('my-msg-color').value;
     userPrefs.othersColor = document.getElementById('others-msg-color').value;
@@ -46,7 +44,25 @@ window.resetColors = () => {
     location.reload();
 };
 
-// --- نظام تسجيل الدخول ---
+// --- 4. دالة التحميل (إجبار التنزيل) ---
+window.downloadMedia = async (url, filename) => {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename || 'download';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        window.open(url, '_blank');
+    }
+};
+
+// --- 5. نظام تسجيل الدخول ---
 onAuthStateChanged(auth, (user) => {
     const inputArea = document.getElementById("input-area");
     const loginNotice = document.getElementById("login-notice");
@@ -73,7 +89,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- وظيفة الرفع والارسال ---
+// --- 6. وظيفة الرفع والارسال ---
 window.uploadFile = async (e) => {
     const file = e.target.files[0];
     if (!file || !auth.currentUser) return;
@@ -116,7 +132,7 @@ window.sendMessage = () => {
     }
 };
 
-// --- عرض الرسايل ---
+// --- 7. عرض الرسايل ---
 onChildAdded(messagesRef, (data) => {
     const msg = data.val();
     const msgId = data.key;
@@ -126,8 +142,7 @@ onChildAdded(messagesRef, (data) => {
 });
 
 onChildRemoved(messagesRef, (data) => {
-    const element = document.getElementById(data.key);
-    if(element) element.remove();
+    document.getElementById(data.key)?.remove();
     delete allMessages[data.key];
     updateMediaList();
 });
@@ -139,6 +154,7 @@ function renderMessage(id, msg) {
     div.className = `message ${isMe ? "my-message" : "others-message"}`;
     div.id = id;
 
+    // تطبيق اللون المختار
     div.style.backgroundColor = isMe ? userPrefs.myColor : userPrefs.othersColor;
 
     onValue(ref(db, 'users/' + msg.senderId), (snapshot) => {
@@ -146,9 +162,17 @@ function renderMessage(id, msg) {
         let mediaHtml = "";
         if (msg.fileUrl) {
             if (msg.fileType === 'image') {
-                mediaHtml = `<img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;" onclick="window.open('${msg.fileUrl}')">`;
+                mediaHtml = `
+                    <img src="${msg.fileUrl}" style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;">
+                    <button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">📥 حفظ الصورة</button>
+                `;
             } else {
-                mediaHtml = `<div style="background:rgba(0,0,0,0.1); padding:8px; border-radius:5px; margin-bottom:5px;"><a href="${msg.fileUrl}" target="_blank" style="color:#2196f3; text-decoration:none;">📄 ${msg.fileName}</a></div>`;
+                mediaHtml = `
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:5px; margin-bottom:5px;">
+                        <span style="display:block; font-size:12px; margin-bottom:5px;">📄 ${msg.fileName}</span>
+                        <button class="download-btn" onclick="window.downloadMedia('${msg.fileUrl}', '${msg.fileName}')">📥 تحميل الملف</button>
+                    </div>
+                `;
             }
         }
 
@@ -166,48 +190,40 @@ function renderMessage(id, msg) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// --- الوسائط والروابط ---
+// --- 8. قائمة الوسائط ---
 window.updateMediaList = () => {
     const imgCont = document.getElementById('media-images');
     const fileCont = document.getElementById('media-files');
     const linkCont = document.getElementById('media-links');
-    
-    if(!imgCont) return; // تأكد إن المودال موجود
+    if(!imgCont) return;
 
     imgCont.innerHTML = ''; fileCont.innerHTML = ''; linkCont.innerHTML = '';
 
     Object.keys(allMessages).forEach(id => {
         const m = allMessages[id];
         if (m.fileUrl && m.fileType === 'image') {
-            imgCont.innerHTML += `<img src="${m.fileUrl}" onclick="window.open('${m.fileUrl}')" style="width:30%; margin:1.5%; aspect-ratio:1; object-fit:cover; border-radius:5px; cursor:pointer;">`;
-        }
-        else if (m.fileUrl && m.fileType === 'file') {
-            fileCont.innerHTML += `<div style="padding:10px; border-bottom:1px solid #333;"><a href="${m.fileUrl}" target="_blank" style="color:#2196f3; text-decoration:none;">📄 ${m.fileName}</a></div>`;
+            imgCont.innerHTML += `<img src="${m.fileUrl}" onclick="window.open('${m.fileUrl}')" class="media-thumb">`;
+        } else if (m.fileUrl && m.fileType === 'file') {
+            fileCont.innerHTML += `<div class="media-item"><a href="${m.fileUrl}" target="_blank">📄 ${m.fileName}</a></div>`;
         }
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         if (m.text && m.text.match(urlRegex)) {
             const links = m.text.match(urlRegex);
-            links.forEach(link => {
-                linkCont.innerHTML += `<div style="padding:10px; border-bottom:1px solid #333;"><a href="${link}" target="_blank" style="color:#4caf50; text-decoration:none;">🔗 ${link}</a></div>`;
-            });
+            links.forEach(l => { linkCont.innerHTML += `<div class="media-item"><a href="${l}" target="_blank">🔗 ${l}</a></div>`; });
         }
     });
 }
 
-// --- وظائف عامة (ربط بـ window) ---
-window.deleteMsg = (id) => { if(confirm("حذف هذه الرسالة؟")) remove(ref(db, "messages/" + id)); };
+// --- 9. الوظائف العامة ---
+window.deleteMsg = (id) => { if(confirm("حذف؟")) remove(ref(db, "messages/" + id)); };
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
-window.closeModals = () => {
-    document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
-};
+window.closeModals = () => document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
 
-// ربط الأزرار بالأحداث
 document.getElementById("settings-btn").onclick = () => {
     document.getElementById('my-msg-color').value = userPrefs.myColor;
     document.getElementById('others-msg-color').value = userPrefs.othersColor;
     document.getElementById("settings-modal").style.display = "flex";
 };
-
 document.getElementById("media-list-btn").onclick = () => {
     window.updateMediaList();
     document.getElementById("media-modal").style.display = "flex";
@@ -229,9 +245,9 @@ window.handleAuth = (type) => {
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
             set(ref(db, 'users/' + res.user.uid), { username: name, email: email });
             window.closeModals();
-        }).catch(err => alert("خطأ: " + err.message));
+        }).catch(err => alert(err.message));
     } else {
-        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert("خطأ: " + err.message));
+        signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(err => alert(err.message));
     }
 };
 
