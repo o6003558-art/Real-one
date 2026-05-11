@@ -25,22 +25,32 @@ const ADMIN_EMAIL = "o6003558@gmail.com";
 let allMessages = {}; 
 let userPrefs = JSON.parse(localStorage.getItem('chatSettings')) || { myColor: "#005c4b", othersColor: "#202c33" };
 
-// --- 1. التمرير الذكي (Smart Scroll) ---
+// --- 1. التمرير الذكي (Smart Scroll) مصلح 100% ---
 const chatBox = document.getElementById("chat-box");
 const scrollBtn = document.getElementById("smart-scroll-btn");
 
 chatBox.addEventListener('scroll', () => {
-    // لو المسافة بينك وبين آخر الشات أكبر من 300 بيكسل، يظهر سهم لتحت
-    const isEnd = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 300;
-    scrollBtn.innerText = isEnd ? "↑" : "↓";
+    const scrollHeight = chatBox.scrollHeight;
+    const scrollTop = chatBox.scrollTop;
+    const clientHeight = chatBox.clientHeight;
+
+    // إذا كان المستخدم في الثلث الأخير من الشات، خلي السهم يطلع لفوق
+    if (scrollTop + clientHeight >= scrollHeight - 100) {
+        scrollBtn.innerText = "↑";
+    } else {
+        scrollBtn.innerText = "↓";
+    }
 });
 
 scrollBtn.onclick = () => {
-    const target = scrollBtn.innerText === "↓" ? chatBox.scrollHeight : 0;
-    chatBox.scrollTo({ top: target, behavior: 'smooth' });
+    if (scrollBtn.innerText === "↓") {
+        chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+    } else {
+        chatBox.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 };
 
-// --- 2. التحميل الآمن للملفات ---
+// --- 2. التحميل الآمن ---
 window.downloadMedia = async (url, filename) => {
     try {
         const response = await fetch(url);
@@ -56,22 +66,18 @@ window.downloadMedia = async (url, filename) => {
     } catch (e) { window.open(url, '_blank'); }
 };
 
-// --- 3. نظام النجمة (⭐) بالضغطة المطولة ---
+// --- 3. نظام النجمة المطور (الضغط المزدوج) ---
 window.toggleStar = (id) => {
     if (!auth.currentUser) return alert("سجل دخول الأول!");
     const msg = allMessages[id];
     let stars = msg.starredBy || [];
     const uid = auth.currentUser.uid;
 
-    if (stars.includes(uid)) {
-        stars = stars.filter(i => i !== uid);
-    } else {
-        stars.push(uid);
-    }
+    stars = stars.includes(uid) ? stars.filter(i => i !== uid) : [...stars, uid];
     update(ref(db, `messages/${id}`), { starredBy: stars });
 };
 
-// --- 4. الألوان الشخصية ---
+// --- 4. الألوان والرفع والإرسال (كما هي مع تحسينات طفيفة) ---
 window.saveColors = () => {
     userPrefs.myColor = document.getElementById('my-msg-color').value;
     userPrefs.othersColor = document.getElementById('others-msg-color').value;
@@ -79,14 +85,11 @@ window.saveColors = () => {
     location.reload();
 };
 
-// --- 5. الرفع والإرسال ---
 window.uploadFile = async (e) => {
     const file = e.target.files[0];
     if (!file || !auth.currentUser) return;
-    
     const sendBtn = document.getElementById("send-btn");
-    sendBtn.innerText = "⏳"; // مؤشر رفع
-    
+    sendBtn.innerText = "⏳";
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
@@ -123,14 +126,13 @@ window.sendMessage = () => {
     }
 };
 
-// --- 6. عرض ومعالجة الرسائل ---
+// --- 5. عرض الرسائل مع ميزة الضغط المزدوج ---
 onChildAdded(messagesRef, (data) => {
     const id = data.key;
     allMessages[id] = data.val();
     renderMessage(id, data.val());
 });
 
-// تحديث الرسالة لو النجمة اتضافت (بدون تكرار)
 onChildChanged(messagesRef, (data) => {
     allMessages[data.key] = data.val();
     renderMessage(data.key, data.val());
@@ -149,13 +151,19 @@ function renderMessage(id, msg) {
     div.className = `message ${isMe ? "my-message" : "others-message"}`;
     div.style.backgroundColor = isMe ? userPrefs.myColor : userPrefs.othersColor;
 
-    // ميزة الضغطة المطولة (Hold for 800ms)
-    let timer;
-    const startHold = () => timer = setTimeout(() => window.toggleStar(id), 800);
-    const stopHold = () => clearTimeout(timer);
+    // ميزة الضغط المزدوج (Double Click / Double Tap)
+    let lastTap = 0;
+    div.addEventListener('touchstart', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) { // لو الضغطتين بينهم أقل من 300ms
+            window.toggleStar(id);
+        }
+        lastTap = now;
+    });
     
-    div.onmousedown = div.ontouchstart = startHold;
-    div.onmouseup = div.ontouchend = div.onmouseleave = stopHold;
+    div.addEventListener('dblclick', () => {
+        window.toggleStar(id);
+    });
 
     onValue(ref(db, `users/${msg.senderId}`), (snap) => {
         const name = snap.val()?.username || "عضو";
@@ -177,15 +185,18 @@ function renderMessage(id, msg) {
                 ${auth.currentUser?.email === ADMIN_EMAIL ? `<span onclick="window.deleteMsg('${id}')" style="color:#ff4444;cursor:pointer;font-weight:bold;">حذف</span>` : ""}
             </div>
         `;
-    }, { onlyOnce: true }); // أداء أفضل
+    }, { onlyOnce: true });
 
     if (!div.parentElement) {
         chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        // التمرير التلقائي للأسفل عند وصول رسالة جديدة فقط لو المستخدم أصلاً تحت
+        if (chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 500) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
     }
 }
 
-// --- 7. المكتبة والوسائط ---
+// --- 6. باقي الوظائف (المكتبة، Auth، الخ) ---
 window.updateMediaList = () => {
     const tabs = { images: '', files: '', links: '', starred: '' };
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -217,7 +228,6 @@ window.updateMediaList = () => {
     document.getElementById('media-starred').innerHTML = tabs.starred || "لا يوجد رسائل مميزة";
 };
 
-// --- 8. التحكم والـ Auth ---
 onAuthStateChanged(auth, (user) => {
     const inputArea = document.getElementById("input-area");
     const authBtn = document.getElementById("auth-btn");
@@ -246,20 +256,18 @@ window.handleAuth = (type) => {
     const email = document.getElementById("email-input").value;
     const pass = document.getElementById("password-input").value;
     const name = document.getElementById("reg-username-input").value;
-    
     if (type === 'signup') {
         if(!name) return alert("اكتب اسمك الأول!");
         createUserWithEmailAndPassword(auth, email, pass).then(res => {
             set(ref(db, `users/${res.user.uid}`), { username: name, email: email });
             window.closeModals();
-        }).catch(e => alert("فشل التسجيل: " + e.message));
+        }).catch(e => alert("فشل التسجيل"));
     } else {
         signInWithEmailAndPassword(auth, email, pass).then(window.closeModals).catch(e => alert("بيانات خطأ!"));
     }
 };
 
-// وظائف عامة للمودالات
-window.deleteMsg = (id) => { if(confirm("حذف الرسالة نهائياً؟")) remove(ref(db, `messages/${id}`)); };
+window.deleteMsg = (id) => { if(confirm("حذف الرسالة؟")) remove(ref(db, `messages/${id}`)); };
 window.openAuthModal = () => document.getElementById("auth-modal").style.display = "flex";
 window.closeModals = () => document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
 document.getElementById("settings-btn").onclick = () => document.getElementById("settings-modal").style.display = "flex";
