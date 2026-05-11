@@ -1,12 +1,10 @@
-/* تنسيق عام - الخلفية السوداء الاحترافية */
 body {
-    margin: 0;
-    padding: 0;
+    margin: 0; padding: 0;
     font-family: 'Cairo', sans-serif;
-    background-color: #0b0e11; /* أسود عميق */
+    background-color: #0b0e11; /* أسود صريح */
     color: white;
     direction: rtl;
-    overflow: hidden; /* منع سكرول الصفحة كاملة عشان نتحكم في الشات بس */
+    overflow: hidden; /* لمنع سكرول الصفحة والاعتماد على سكرول الشات */
 }
 
 header {
@@ -17,19 +15,11 @@ header {
     align-items: center;
     height: 60px;
     border-bottom: 1px solid #333;
-    position: relative;
     z-index: 1000;
 }
 
-#user-info {
-    font-size: 14px;
-    font-weight: bold;
-    color: #00a884; /* أخضر براندينج */
-}
-
-/* الحاوية الأساسية للشات - هي دي اللي بتعمل سكرول */
 #chat-box {
-    height: calc(100vh - 130px); /* طرح طول الهيدر والإنبوت */
+    height: calc(100vh - 130px); /* ضبط الطول ليناسب الشاشة */
     overflow-y: auto;
     padding: 15px;
     display: flex;
@@ -38,65 +28,24 @@ header {
     background-color: #0b0e11;
 }
 
-/* تنسيق الرسائل */
+/* الرسائل */
 .message {
     max-width: 80%;
     padding: 10px 15px;
     border-radius: 15px;
-    word-wrap: break-word;
-    position: relative;
     font-size: 15px;
-    line-height: 1.5;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-    user-select: none; /* منع تحديد النص أثناء الضغط المزدوج */
-    transition: transform 0.1s ease;
+    position: relative;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    user-select: none; /* مهم جداً عشان الدبل تاتش */
 }
 
-.message:active {
-    transform: scale(0.98); /* تأثير بسيط عند الضغط */
-}
+.my-message { align-self: flex-start; background: #005c4b; border-bottom-right-radius: 2px; }
+.others-message { align-self: flex-end; background: #202c33; border-bottom-left-radius: 2px; }
 
-/* رسائلي أنا */
-.my-message {
-    align-self: flex-start;
-    background: #005c4b; /* أخضر واتساب غامق */
-    color: #e9edef;
-    border-bottom-right-radius: 2px;
-}
-
-/* رسائل الآخرين */
-.others-message {
-    align-self: flex-end;
-    background: #202c33; /* رمادي غامق */
-    color: #e9edef;
-    border-bottom-left-radius: 2px;
-}
-
-/* منطقة الإدخال */
-#input-area {
-    height: 70px;
-    background: #15191c;
-    display: flex;
-    align-items: center;
-    padding: 0 15px;
-    gap: 10px;
-    border-top: 1px solid #333;
-}
-
-#message-input {
-    flex: 1;
-    padding: 10px 15px;
-    border-radius: 25px;
-    border: 1px solid #333;
-    background: #2a3942;
-    color: white;
-    outline: none;
-}
-
-/* زرار السكرول الذكي */
+/* زرار السكرول */
 .scroll-btn {
     position: fixed;
-    bottom: 85px; /* فوق منطقة الكتابة */
+    bottom: 90px;
     left: 20px;
     width: 45px;
     height: 45px;
@@ -104,74 +53,34 @@ header {
     background: #00a884;
     color: white;
     border: none;
-    font-size: 20px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    font-size: 22px;
     z-index: 1100;
-    display: flex;
+    cursor: pointer;
+    display: none; /* سيظهر بواسطة JS */
     align-items: center;
     justify-content: center;
-    transition: 0.3s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
 }
 
-.scroll-btn:hover {
-    background: #008f6f;
+#input-area {
+    position: fixed; bottom: 0; width: 100%;
+    background: #15191c; padding: 15px;
+    display: flex; align-items: center; gap: 10px;
+    box-sizing: border-box; border-top: 1px solid #333;
 }
 
-/* أزرار الهيدر */
-.icon-btn {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #b1b3b5;
-    margin-right: 8px;
+#message-input {
+    flex: 1; padding: 10px 15px; border-radius: 25px;
+    border: 1px solid #333; background: #2a3942; color: white;
 }
 
-.btn {
-    padding: 6px 15px;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.primary { background: #00a884; color: white; }
-
-/* المودالات (القوائم المنبثقة) */
 .modal-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 2000; display: flex; justify-content: center; align-items: center;
 }
 
-.modal-content {
-    background: #232d36;
-    padding: 20px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 400px;
-    border: 1px solid #333;
-}
+.modal-content { background: #232d36; padding: 20px; border-radius: 15px; width: 90%; max-width: 400px; }
 
-/* تنسيق المكتبة (الصور والروابط) */
-.media-thumb {
-    width: 30%;
-    margin: 1.5%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: 8px;
-}
-
-.starred-item {
-    background: #1c2229;
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    border-right: 3px solid #00a884;
-}
+.btn { cursor: pointer; border: none; padding: 8px 15px; border-radius: 20px; font-family: inherit; font-weight: bold; }
+.primary { background: #00a884; color: white; }
+.icon-btn { background: none; color: #b1b3b5; font-size: 22px; }
