@@ -213,3 +213,36 @@ header {
 .media-item { padding: 10px; border-bottom: 1px solid #333; word-break: break-all; }
 .media-item a { color: #2196f3; text-decoration: none; }
 .file-box { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 5px; margin: 5px 0; }
+
+/* زرار السكرول الذكي */
+.scroll-btn {
+    position: fixed;
+    bottom: 80px;
+    left: 20px;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: #25d366;
+    color: white;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 100;
+    transition: 0.3s;
+}
+
+/* علامة النجمة داخل الرسالة */
+.star-icon {
+    color: #ffca28;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+.starred-msg-item {
+    padding: 10px;
+    border-bottom: 1px solid #444;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
